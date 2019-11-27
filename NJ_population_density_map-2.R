@@ -1,4 +1,4 @@
-### Script to create map of population density for all counties in NJ with 
+### Script to create map of population density for all Municipality in NJ with 
 ### ambient air quality monitoring stations. This script will utlize the tidycensus package to 
 ### retrieve population data from the US Census Bureau ###
 ### Author: Kevin Zolea; Date: 9/2019 ###
@@ -11,9 +11,9 @@ if (!require(pacman)) {
 pacman::p_load("tidyverse","tidycensus","sf","ggsn","cowplot","viridis","readxl")
 ###########################################################################################
 ### Install package from github that allows nice labeling on maps ###
+#devtools::install_github("yutannihilation/ggsflabel")
 ### Would normally use above method with pacman but getting trouble for some reason ###
-devtools::install_github("yutannihilation/ggsflabel")
-library(ggsflabel) # load package in 
+#library(ggsflabel) # load package in 
 ### Read in ambient air quality monitoring stations shapefile ###
 NJ_air_stations<-read_csv("Ambient_Air_Quality_Monitors_of_New_Jersey.csv",col_names = T)%>%
   dplyr::select(-OBJECTID,-AIRS_CODE)
@@ -30,6 +30,8 @@ NJ_air_stations <- st_set_crs(NJ_air_stations, "+proj=longlat +datum=WGS84")
 NJ_muni<-st_read(dsn= getwd(),layer="New_Jersey_Municipalities")
 NJ_pop_estimates$MUN<-gsub("TOWNSHIP","TWP",NJ_pop_estimates$MUN)
 NJ_pop_estimates$MUN<-gsub("BOROUGH","BORO",NJ_pop_estimates$MUN)
+NJ_pop_estimates$MUN<-gsub("PEAPACK AND GLADSTONE BORO","PEAPACK-GLADSTONE BORO",NJ_pop_estimates$MUN)
+NJ_pop_estimates$MUN<-gsub("HILLSBORO TWP","HILLSBOROUGH TWP",NJ_pop_estimates$MUN)
 ### join muni shapefile and muni pop density together ###
 nj_pop_muni<-left_join(NJ_pop_estimates,NJ_muni,by = "MUN")
 nj_pop_muni<-st_as_sf(nj_pop_muni)
@@ -43,17 +45,17 @@ nj_pop_muni<-st_as_sf(nj_pop_muni)
 ###########################################################################################
 ### Make breaks for legend ###
 nj_pop_muni$brks <- cut(nj_pop_muni$pop_density_2018, 
-                   breaks=c(0, 100, 500, 1000, 10000, 15000), 
-                   labels=c("0 - 100", "100 - 500", "500 - 1000",
-                            "1000-10000","10000 - 15000"))
+                   breaks=c(0, 10, 25, 50, 100, 250,500,1000,2500,5000,58000), 
+                   labels=c("0 - 10", "10 - 25", "25 - 50",
+                            "50-100","100 - 250","250 - 500","500 - 1000","1000 - 2500",
+                            "2500 - 5000","5000 - 58000"))
 ###########################################################################################
 ### Create map using ggplot2 ###
 pop_map<-ggplot()+
-  #geom_sf(data = nj_pop_muni,aes(fill=brks))+
-  geom_sf(data = nj_pop_muni)+
-  #geom_sf(data = NJ_counties,fill="white")+
+  geom_sf(data = nj_pop_muni,aes(fill=brks))+
   geom_sf(data = NJ_air_stations,aes(color="NJ Ambient Air Quality Monitoring Stations"),
           size=3.5,key_glyph = draw_key_dotplot)+
+  geom_sf_text(data=NJ_air_stations,aes(label = SITE_NAME),nudge_x = 3.5)+
   #geom_sf_label_repel(data = NJ_air_stations,aes(label=SITE_NAME))+
   #geom_sf_text_repel(data = subset(NJ_air_stations, X < -75),aes(label = SITE_NAME),
   #                    force = 100, nudge_x = 3.5- subset(NJ_air_stations, X < -75)$X,hjust=1,segment.size = 0.2,
@@ -73,16 +75,18 @@ pop_map<-ggplot()+
         axis.line = element_blank(),
         panel.background = element_blank(),
         legend.background = element_blank(),
-        legend.position=c(-0.3,0.8),
+        legend.position=c(-0.4,0.7),
         legend.text = element_text(size=12),
         legend.title = element_text(colour="black", size=12, face="bold"),
         plot.title=element_text(size=20, face="bold",hjust =0.5),
         legend.box.background = element_rect(colour = "black"),
         plot.subtitle = element_text(hjust = 0.5,size=12))+
-  ggsn::scalebar(NJ_pop_estimates, dist = 25, st.size=3, height=0.01,model = 'WGS84',
-                 transform = T,dist_unit = "mi",location = "bottomright")+
-  scale_fill_manual("",values = c("green","yellow","orange","red","#8b0000"))+
-  scale_color_manual("Population Density per Municipalities (2018 Estimates)",
+  ggsn::scalebar(nj_pop_muni, dist = 25, st.size=4, height=0.01,model = 'WGS84',
+                 transform = F,dist_unit = "mi",location = "bottomright")+
+  scale_fill_manual("Population Density\nper Municipalities (2018 Estimates)",
+                    values = c("green","#4ca64c","#9acd32","#b8dc6f","yellow",
+                                  "#FFAE42","orange","#FF4500","red","#8b0000"))+
+  scale_color_manual("",
                      values = c("NJ Ambient Air Quality Monitoring Stations"="black"))
 ### Creates north arrow for map using the ggsn package ###
 north2(pop_map, x = 0.35, y = 0.15, scale = 0.1, symbol = 3)
